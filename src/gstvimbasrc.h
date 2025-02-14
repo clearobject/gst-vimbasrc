@@ -19,6 +19,8 @@
 #ifndef _GST_vimbasrc_H_
 #define _GST_vimbasrc_H_
 
+#include <gst/video/video.h> // todo
+
 #include "pixelformats.h"
 
 #include <gst/base/gstpushsrc.h>
@@ -137,6 +139,8 @@ typedef enum
     GST_VIMBASRC_INCOMPLETE_FRAME_HANDLING_SUBMIT
 } GstVimbasrcIncompleteFrameHandlingValue;
 
+#define GST_BUFFER_FLAG_INCOMPLETE_FRAME (GST_BUFFER_FLAG_LAST << 1) // todo
+
 typedef struct _GstVimbaSrc GstVimbaSrc;
 typedef struct _GstVimbaSrcClass GstVimbaSrcClass;
 
@@ -201,5 +205,7 @@ VmbError_t stop_image_acquisition(GstVimbaSrc *vimbasrc);
 void VMB_CALL vimba_frame_callback(const VmbHandle_t cameraHandle, VmbFrame_t *pFrame);
 void map_supported_pixel_formats(GstVimbaSrc *vimbasrc);
 void log_available_enum_entries(GstVimbaSrc *vimbasrc, const char *feat_name);
+
+static void gst_vimbasrc_post_incomplete_frame_warning(GstVimbaSrc *vimbasrc, VmbFrame_t *frame); // todo
 
 #endif

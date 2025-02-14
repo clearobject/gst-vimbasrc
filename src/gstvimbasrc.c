@@ -1235,6 +1235,32 @@ static gboolean gst_vimbasrc_stop(GstBaseSrc *src)
     return TRUE;
 }
 
+
+static void gst_vimbasrc_post_incomplete_frame_warning(GstVimbaSrc *vimbasrc, VmbFrame_t *frame)
+{
+    GError *error = g_error_new(g_quark_from_static_string("vimbasrc-incomplete-frame"),
+                               0, /* error code */
+                               "Frame ID %llu was incomplete",
+                               frame->frameID);
+
+    GstStructure *details = gst_structure_new("incomplete-frame-details",
+                                            "frame-id", G_TYPE_UINT64, frame->frameID,
+                                            "handling-mode", G_TYPE_STRING,
+                                            (vimbasrc->properties.incomplete_frame_handling ==
+                                             GST_VIMBASRC_INCOMPLETE_FRAME_HANDLING_SUBMIT) ?
+                                             "submit" : "drop",
+                                            NULL);
+
+    /* Post warning message on the bus */
+    GstMessage *msg = gst_message_new_warning_with_details(GST_OBJECT(vimbasrc),
+                                                         error,
+                                                         "Incomplete frame detected",
+                                                         details);
+    gst_element_post_message(GST_ELEMENT(vimbasrc), msg);
+    g_error_free(error);
+}
+
+
 /* ask the subclass to create a buffer */
 static GstFlowReturn gst_vimbasrc_create(GstPushSrc *src, GstBuffer **buf)
 {
@@ -1254,23 +1280,26 @@ static GstFlowReturn gst_vimbasrc_create(GstPushSrc *src, GstBuffer **buf)
         {
             // Try to get a filled frame for 10 microseconds
             frame = g_async_queue_timeout_pop(vimbasrc->filled_frame_queue, 10);
-            // Get the current state of the element. Should return immediately since we are not doing ASYNC state changes
-            // but wait at most for 100 nanoseconds
-            ret = gst_element_get_state(GST_ELEMENT(vimbasrc), &state, NULL, 100); // timeout is given in nanoseconds
+            // Get the current state of the element
+            ret = gst_element_get_state(GST_ELEMENT(vimbasrc), &state, NULL, 100);
             UNUSED(ret);
             if (state != GST_STATE_PLAYING)
             {
-                // The src should not create any more data. Stop waiting for frame and do not fill buf
+                // The src should not create any more data
                 GST_INFO_OBJECT(vimbasrc, "Element state is no longer \"GST_STATE_PLAYING\". Aborting create call.");
                 return GST_FLOW_FLUSHING;
             }
         } while (frame == NULL);
-        // We got a frame. Check receive status and handle incomplete frames according to
-        // vimbasrc->properties.incomplete_frame_handling
+
+        // Check frame status and handle incomplete frames
         if (frame->receiveStatus == VmbFrameStatusIncomplete)
         {
             GST_WARNING_OBJECT(vimbasrc,
                                "Received frame with ID \"%llu\" was incomplete", frame->frameID);
+
+            // Post warning message on the bus
+            gst_vimbasrc_post_incomplete_frame_warning(vimbasrc, frame);
+
             if (vimbasrc->properties.incomplete_frame_handling == GST_VIMBASRC_INCOMPLETE_FRAME_HANDLING_SUBMIT)
             {
                 GST_DEBUG_OBJECT(vimbasrc,
@@ -1294,8 +1323,13 @@ static GstFlowReturn gst_vimbasrc_create(GstPushSrc *src, GstBuffer **buf)
     // Prepare output buffer that will be filled with frame data
     GstBuffer *buffer = gst_buffer_new_and_alloc(frame->bufferSize);
 
+    // Set the incomplete frame flag if appropriate
+    if (frame->receiveStatus == VmbFrameStatusIncomplete)
+    {
+        GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_INCOMPLETE_FRAME);
+    }
+
     // copy over frame data into the GStreamer buffer
-    // TODO: Investigate if we can work without copying to improve performance?
     gst_buffer_fill(
         buffer,
         0,
@@ -1305,11 +1339,11 @@ static GstFlowReturn gst_vimbasrc_create(GstPushSrc *src, GstBuffer **buf)
     // requeue frame after we copied the image data for Vimba to use again
     VmbCaptureFrameQueue(vimbasrc->camera.handle, frame, &vimba_frame_callback);
 
-    // Set filled GstBuffer as output to pass down the pipeline
     *buf = buffer;
 
     return GST_FLOW_OK;
 }
+
 
 static gboolean plugin_init(GstPlugin *plugin)
 {
