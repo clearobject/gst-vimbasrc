@@ -139,7 +139,7 @@ typedef enum
     GST_VIMBASRC_INCOMPLETE_FRAME_HANDLING_SUBMIT
 } GstVimbasrcIncompleteFrameHandlingValue;
 
-#define GST_BUFFER_FLAG_INCOMPLETE_FRAME (GST_BUFFER_FLAG_LAST << 1) // todo
+#define GST_BUFFER_FLAG_INCOMPLETE_FRAME (GST_BUFFER_FLAG_LAST << 1)
 
 typedef struct _GstVimbaSrc GstVimbaSrc;
 typedef struct _GstVimbaSrcClass GstVimbaSrcClass;
