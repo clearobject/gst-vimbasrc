@@ -49,7 +49,7 @@
 static unsigned int vmb_open_count = 0;
 G_LOCK_DEFINE(vmb_open_count);
 
-GST_DEBUG_CATEGORY_STATIC(gst_vimbasrc_debug_category);
+GST_DEBUG_CATEGORY_STATIC(gst_vimba_src_debug_category);
 #define GST_CAT_DEFAULT gst_vimbasrc_debug_category
 
 /* prototypes */
@@ -1235,7 +1235,25 @@ static gboolean gst_vimbasrc_stop(GstBaseSrc *src)
     return TRUE;
 }
 
+// Let gstreamer know that this frame is healthy
+static void gst_vimbasrc_post_healthy_frame_info(GstVimbaSrc *vimbasrc, VmbFrame_t *frame)
+{
+    GstStructure *details = gst_structure_new("healthy-frame-details",
+                                            "frame-id", G_TYPE_UINT64, frame->frameID,
+                                            NULL);
 
+    /* Post info message on the bus */
+    GstMessage *msg = gst_message_new_info_with_details(GST_OBJECT(vimbasrc),
+                                                       g_error_new(g_quark_from_static_string("vimbasrc-healthy-frame"),
+                                                                 0,
+                                                                 "Frame ID %llu received successfully",
+                                                                 frame->frameID),
+                                                       "Healthy frame received",
+                                                       details);
+    gst_element_post_message(GST_ELEMENT(vimbasrc), msg);
+}
+
+// Let gstreamer know that this frame is unhealthy
 static void gst_vimbasrc_post_incomplete_frame_warning(GstVimbaSrc *vimbasrc, VmbFrame_t *frame)
 {
     GError *error = g_error_new(g_quark_from_static_string("vimbasrc-incomplete-frame"),
@@ -1316,6 +1334,7 @@ static GstFlowReturn gst_vimbasrc_create(GstPushSrc *src, GstBuffer **buf)
         else
         {
             GST_TRACE_OBJECT(vimbasrc, "frame was complete");
+            gst_vimbasrc_post_healthy_frame_info(vimbasrc, frame);
             submit_frame = true;
         }
     } while (!submit_frame);

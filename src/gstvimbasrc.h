@@ -19,7 +19,7 @@
 #ifndef _GST_vimbasrc_H_
 #define _GST_vimbasrc_H_
 
-#include <gst/video/video.h> // todo
+#include <gst/video/video.h>
 
 #include "pixelformats.h"
 
@@ -206,6 +206,7 @@ void VMB_CALL vimba_frame_callback(const VmbHandle_t cameraHandle, VmbFrame_t *p
 void map_supported_pixel_formats(GstVimbaSrc *vimbasrc);
 void log_available_enum_entries(GstVimbaSrc *vimbasrc, const char *feat_name);
 
-static void gst_vimbasrc_post_incomplete_frame_warning(GstVimbaSrc *vimbasrc, VmbFrame_t *frame); // todo
+static void gst_vimbasrc_post_healthy_frame_info(GstVimbaSrc *vimbasrc, VmbFrame_t *frame);
+static void gst_vimbasrc_post_incomplete_frame_warning(GstVimbaSrc *vimbasrc, VmbFrame_t *frame);
 
 #endif
